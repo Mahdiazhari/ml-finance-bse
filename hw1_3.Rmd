@@ -1,6 +1,6 @@
 ---
-title: "hw1-datacleaning"
-author: "Mahdiazhari Austian"
+title: "HW1-3"
+author: "Mahdiazhari Austian & Maximilian Hein"
 date: "5/3/2022"
 output: html_document
 ---
@@ -26,6 +26,7 @@ library('imputeTS')
 library('data.table')
 library('tidyquant')
 library('DT')
+library('xtable')
 ```
 
 
@@ -265,9 +266,29 @@ causality_results_monthly
 datatable(causality_results_monthly, class = 'cell-border stripe')
 ```
 
+```{r}
+weeklyxtable <- xtable(causality_results_weekly, auto = TRUE)
+```
+
+
+```{r}
+print.xtable(weeklyxtable, type='latex', file='weekly_grangertest.tex')
+
+```
+
 
 ##Results for Weekly:
 ```{r}
 datatable(causality_results_weekly, class = 'cell-border stripe')
+```
+
+
+```{r}
+monthlyxtable <- xtable(causality_results_monthly, auto = TRUE)
+```
+
+
+```{r}
+print.xtable(monthlyxtable, type='latex', file='monthly_grangertest.tex')
 ```
 
