@@ -3,7 +3,7 @@
 ##Rlab3c Task  Causality Analysis for World Markets
 ##################################
 library(xts); library(quantmod); library(plyr)
-library("MSBVAR"); library("vars")
+
 ##WARNING: MSBVAR is deprecated from CRAN. I provide old version which must be manually installed. 
 ## But it may not install due to its old bit configuration.
 ##Alternative use grangertest function in lmtest

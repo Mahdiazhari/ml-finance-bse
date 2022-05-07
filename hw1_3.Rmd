@@ -1,0 +1,273 @@
+---
+title: "hw1-datacleaning"
+author: "Mahdiazhari Austian"
+date: "5/3/2022"
+output: html_document
+---
+
+# Homework 1 Number Three
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+
+```{r cars}
+library('xts') 
+library('quantmod') 
+library('dplyr')
+library('plyr')
+library("lmtest") ##load required library for grangertest
+library("MTS")
+library('zoo')
+library('imputeTS')
+library('data.table')
+library('tidyquant')
+library('DT')
+```
+
+
+
+```{r pressure, echo=FALSE}
+mktsym<- c("^BSESN", "^BVSP","^FTSE","^GDAXI","^GSPC","^HSCE", 
+ "^IBEX","^JKSE","^MXX","^N225","^TWII","^VLIC","^VIX")
+marktCtry<-c("India", "Brazil","UK","Germany","USA","China-Shanghai",
+             "Spain","Indonesia","Mexico","Japan","Taiwan","VLIC","VIX")
+```
+
+
+
+```{r}
+data.env <- readRDS("data/WorldMarkts99_20.RDS")
+markets <- ls(data.env)
+```
+
+
+
+```{r}
+### loop through to get Ad.Close, compute weekly return and merge all stocks and treat as xts objects
+returns <- xts()
+per<- "weekly" ## "monthly", "daily"##period of sampling
+for(i in seq_along(markets)) {
+  sym <- markets[i]
+  returns <- merge(returns, 
+                  periodReturn(Ad(get(sym,envir=data.env)),period=per,type = "log"))
+   #periodReturn(Op(get(sym,envir=data.env)),period=per,type = "arithmetic"))
+}
+```
+
+```{r}
+##Resolve NA's. Below a sloppy solution. Do something more intelligent
+#returns[is.na(returns)]<-0 ##imputation of 0 ##or impute previous non 0 return
+colnames(returns) <- paste(markets,".ret",sep="")
+```
+
+
+
+```{r}
+##Extract the epoch to analysis
+dI="2016-07-01"; dF="2018-06-30"
+Retp <- returns[paste(dI,"/",dF,sep=""),]
+```
+
+```{r}
+head(Retp)
+```
+
+
+
+
+```{r}
+str(Retp)
+```
+
+
+
+```{r}
+colnames(Retp)
+```
+
+
+
+```{r}
+ggplot_na_distribution(Retp$JKSE.ret)
+```
+
+
+
+Use interpolation to fill in the NAs:
+
+```{r}
+for (i in 1:ncol(Retp)) {
+ Retp[ , i] <- na_interpolation(Retp[,i])
+  
+}
+```
+
+
+replace column names for the countries
+```{r}
+colnames(Retp) <- marktCtry
+```
+
+
+
+```{r}
+#create empty data table for storing results
+causality_results_weekly <- data.table(country=marktCtry)
+```
+
+
+Test USA & India grangertest:
+```{r}
+caus1 = grangertest(Retp$USA,Retp$India,order=1)$'Pr(>F)'[2]
+```
+
+
+```{r}
+caus1
+```
+
+
+```{r}
+for (cty in marktCtry) {
+  inter= c()
+  for (cty1 in marktCtry) {
+    if (cty == cty1) {
+      inter= append(inter,0)
+    } else {
+      caus1 = grangertest(Retp[,c(as.character(cty), as.character(cty1))],order=1)$'Pr(>F)'[2]
+      caus2 = grangertest(Retp[,c(as.character(cty), as.character(cty1))],order=2)$'Pr(>F)'[2]
+      caus3 = grangertest(Retp[,c(as.character(cty), as.character(cty1))],order=3)$'Pr(>F)'[2]
+      caus4 = grangertest(Retp[,c(as.character(cty), as.character(cty1))],order=4)$'Pr(>F)'[2]
+      results = c(caus1,caus2,caus3,caus4)
+      results = replace(results,results<=0.05,1)
+      results = replace(results,results !=1,0)
+      inter = append(inter, I(list(results)))
+      
+    }
+  } 
+ causality_results_weekly[,as.character(cty) :=inter]
+  
+}
+```
+
+Below is the causality result for weekly:
+```{r}
+causality_results_weekly
+```
+
+## Monthly
+
+```{r}
+returns_monthly <- xts()
+per<- "monthly" ## "monthly", "daily"##period of sampling
+for(i in seq_along(markets)) {
+  sym <- markets[i]
+  returns_monthly <- merge(returns_monthly, 
+                  periodReturn(Ad(get(sym,envir=data.env)),period=per,type = "log"))
+   #periodReturn(Op(get(sym,envir=data.env)),period=per,type = "arithmetic"))
+}
+```
+
+
+```{r}
+colnames(returns_monthly) <- paste(markets,".ret",sep="")
+```
+
+
+```{r}
+head(returns_monthly)
+```
+
+```{r}
+##Extract the epoch to analysis
+dI="2016-07-01"; dF="2018-06-30"
+returns_monthly_epoch <- returns_monthly[paste(dI,"/",dF,sep=""),]
+```
+
+
+```{r}
+sum(is.na(returns_monthly_epoch))
+```
+
+
+```{r}
+ggplot_na_distribution(returns_monthly_epoch$JKSE.ret)
+```
+
+
+Use interpolation to fill in the NAs:
+
+```{r}
+for (i in 1:ncol(returns_monthly_epoch)) {
+ returns_monthly_epoch[ , i] <- na_interpolation(returns_monthly_epoch[,i])
+  
+}
+```
+
+
+replace column names for the countries:
+```{r}
+colnames(returns_monthly_epoch) <- marktCtry
+```
+
+
+```{r}
+#create empty data table for storing results
+causality_results_monthly <- data.table(country=marktCtry)
+```
+
+
+Test USA & India grangertest:
+```{r}
+caus1_month = grangertest(returns_monthly_epoch$USA, returns_monthly_epoch$India,order=1)$'Pr(>F)'[2]
+```
+
+
+```{r}
+caus1_month
+```
+
+```{r}
+for (cty in marktCtry) {
+  inter= c()
+  for (cty1 in marktCtry) {
+    if (cty == cty1) {
+      inter= append(inter,0)
+    } else {
+      caus1 = grangertest(returns_monthly_epoch[,c(as.character(cty), as.character(cty1))],order=1)$'Pr(>F)'[2]
+      caus2 = grangertest(returns_monthly_epoch[,c(as.character(cty), as.character(cty1))],order=2)$'Pr(>F)'[2]
+      caus3 = grangertest(returns_monthly_epoch[,c(as.character(cty), as.character(cty1))],order=3)$'Pr(>F)'[2]
+      caus4 = grangertest(returns_monthly_epoch[,c(as.character(cty), as.character(cty1))],order=4)$'Pr(>F)'[2]
+      results = c(caus1,caus2,caus3,caus4)
+      results = replace(results,results<=0.05,1)
+      results = replace(results,results !=1,0)
+      inter = append(inter, I(list(results)))
+      
+    }
+  } 
+ causality_results_monthly[,as.character(cty) :=inter]
+  
+}
+```
+
+
+```{r}
+causality_results_monthly
+```
+
+
+## Results for Monthly:
+```{r}
+datatable(causality_results_monthly, class = 'cell-border stripe')
+```
+
+
+##Results for Weekly:
+```{r}
+datatable(causality_results_weekly, class = 'cell-border stripe')
+```
+
