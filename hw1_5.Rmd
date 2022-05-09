@@ -1,0 +1,186 @@
+---
+title: "hw1_5"
+author: "Mahdiazhari Austian"
+date: "5/9/2022"
+output: html_document
+---
+
+# Homework 1 - Number 5
+
+
+
+```{r}
+fileloc <- dirname(rstudioapi::getSourceEditorContext()$path)
+setwd(fileloc)
+rm(fileloc)
+library(kernlab) ##for GP
+library(MASS)
+#library(Metrics)##Measures of prediction error:mse, mae
+library(xts) ## handling time series
+library(reshape2)
+library(ggplot2)
+library(plyr)
+library("quantmod")
+library("vars")
+library("lmtest") #comes with vars
+library('imputeTS') #for imputing time series
+set.seed(1996)
+```
+
+
+# Import variables, transform predicted variable
+
+```{r}
+sp500 = as.xts(read.zoo('data/GoyalMonthly2005.csv',sep=',',header=TRUE, format='%Y-%m-%d'))
+names(sp500)
+mt=sp500['1927/2005']
+```
+
+
+
+```{r}
+head(mt)
+```
+
+```{r}
+##frequency of sampling
+tau=1 #data is monthly. Try tau=12 (year), tau=3 (quarterly)
+
+```
+
+
+```{r}
+##1. Target and Feature as plain Price
+target <- mt$Index
+
+##2. Target and Feature as Returns
+#sp500PE = diff(log(sp500PE),diff=tau)
+target= diff(log(target),diff=tau)  ##compute tau-period returns
+##try non-center (above) /center target (below)
+target=na.trim(target-mean(na.omit(target))) ##Center the target 
+```
+
+
+
+
+```{r}
+##Predictor (wanna-be) variables
+# dividend-price ratio (dp)
+dp <- log(mt$D12) - log(mt$Index)
+# dividend-payout ratio (de)
+de <- log(mt$D12) - log(mt$E12)
+# earnings to price
+ep <- log(mt$E12) - log(mt$Index)
+## dividend yield 
+dy <- log(mt$D12) - log(stats::lag(mt$Index,1))
+# Default yield spread (dfy)= BAA-AAA rated corporate bond yields:
+dfy <- mt$BAA -mt$AAA
+
+```
+
+
+```{r}
+## from the table consider stock variance (svar), Book-to-Market (b.m)
+## net equity expansion (ntis, start 1926), inflation (infl)
+# Treasury Bill rates (tbl, 1920)
+svar = mt$svar
+bm <-mt$b.m
+ntis <- mt$ntis
+infl <-mt$infl
+tbl <- mt$tbl
+
+names(GSPCep) = "GSPCep"; 
+names(ep) = "ep"; names(bm) = "bm"   
+names(dp) = "dp"; names(svar) = "svar"  
+names(dy) = "dy"; names(de) = "de"   
+names(ntis) = "ntis"; names(infl) = "infl"  
+names(tbl) = "tbl"; names(dfy) ="dfy"
+```
+
+
+
+```{r}
+##Model Inputs:
+##Define matrix of features (each column is a feature)
+#Features: lags 1,2,3 with (or w/o) ep,svar,bm and lags 1,2
+feat = merge(na.trim(stats::lag(target,1)),na.trim(stats::lag(target,2)),na.trim(stats::lag(target,3)),
+             bm,ep,svar,na.trim(stats::lag(bm,1)),na.trim(stats::lag(bm,2)),na.trim(stats::lag(ep,1)), na.trim(stats::lag(ep,2)), na.trim(stats::lag(svar,1)), na.trim(stats::lag(svar,2)),
+             #add other features here,
+             all=FALSE)
+```
+
+
+```{r}
+##add TARGET. We want to predict PRICE or RETURN
+dataset = merge(feat,target,all=FALSE)
+colnames(dataset) = c("lag.1", "lag.2", "lag.3",
+                      "bm","ep","svar", "bm.1", "bm.2", "ep.1", "ep.2", "svar.1", "svar.2",
+                      #names of other features,
+                      "TARGET")
+```
+
+
+```{r}
+head(dataset)
+```
+
+
+
+
+
+
+
+
+We analyse Causality of stock variance (svar), Book-to-Market (b.m), and earnings to price(ep)
+on SP500 (GSPCep) at different epochs [1927/1932], [1933/1970],[1971/1997], [1998/2005].
+
+plot target and vars and consider periods of common smooth behaviour: between two brek points
+keep in mind: data is monthly so need 4-5 years for enough data for tests
+
+
+
+
+```{r}
+plot(GSPCep)
+plot(GSPCep["1927/1931"])
+plot(ep["1927/1931"])
+```
+
+
+```{r}
+# Merge predicted with predictors
+Z1 = merge(GSPCep,ep,svar,bm,)
+```
+
+
+
+## Forecasting with GP
+
+##EVALUATION Functtions
+
+##1. Evaluation for TARGET prediction.  
+
+```{r}
+##sum of squares errors function
+ssr <-function(actual,pred){
+  sum((actual - pred)^2)
+}
+```
+
+
+
+```{r}
+##Normalize Residual Mean Square Error (NRMSE) funct
+nrmse <- function(actual,pred){
+  sqrt(ssr(actual,pred)/((length(actual)-1)*var(actual)))
+} 
+```
+
+
+```{r}
+##percentage of outperforming direct sample mean (sample expected value)
+pcorrect<- function(actual,pred){
+  (1-nrmse(actual,pred))*100
+}
+```
+
