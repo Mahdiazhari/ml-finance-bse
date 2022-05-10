@@ -5,10 +5,19 @@ date: "5/9/2022"
 output: html_document
 ---
 
-# Homework 1 - Number 5
+# Homework 1 - Number 5 - Forecasting with Gaussian Process 
+
+Predict the SP500 with the financial indicators selected by
+your team in the google spreadsheet (ep, dp, de, dy, dfy, bm, svar, ntis, infl, tbl , see
+RLab3 GWcausalSP500.R), some lagged series of these indicators and lags of the target
+using a GP regression with your desired kernel. Predict return, or price, or trend (for which
+target works best?) select appropriate kernel and justify its use.
+
+Do some feature selection to disregard some variables, select appropriate lags: 
+causality, (distance) correlation, VaR-test, Lasso
 
 
-
+## Import Packages
 ```{r}
 fileloc <- dirname(rstudioapi::getSourceEditorContext()$path)
 setwd(fileloc)
@@ -42,6 +51,8 @@ mt=sp500['1927/2005']
 head(mt)
 ```
 
+
+
 ```{r}
 ##frequency of sampling
 tau=1 #data is monthly. Try tau=12 (year), tau=3 (quarterly)
@@ -49,6 +60,7 @@ tau=1 #data is monthly. Try tau=12 (year), tau=3 (quarterly)
 ```
 
 
+Set the target as log returns
 ```{r}
 ##1. Target and Feature as plain Price
 target <- mt$Index
@@ -61,8 +73,7 @@ target=na.trim(target-mean(na.omit(target))) ##Center the target
 ```
 
 
-
-
+Calculate predictor variables as given in Rlab3_GWCausal500.R
 ```{r}
 ##Predictor (wanna-be) variables
 # dividend-price ratio (dp)
@@ -79,6 +90,7 @@ dfy <- mt$BAA -mt$AAA
 ```
 
 
+Set other variables here
 ```{r}
 ## from the table consider stock variance (svar), Book-to-Market (b.m)
 ## net equity expansion (ntis, start 1926), inflation (infl)
@@ -98,7 +110,9 @@ names(tbl) = "tbl"; names(dfy) ="dfy"
 ```
 
 
+## Feature Matrix Creation
 
+Create a matrix of features consisting of the target and its lags plus the indicators and their lags:
 ```{r}
 ##Model Inputs:
 ##Define matrix of features (each column is a feature)
@@ -110,6 +124,7 @@ feat = merge(na.trim(stats::lag(target,1)),na.trim(stats::lag(target,2)),na.trim
 ```
 
 
+Merge the feature matrix with indicators
 ```{r}
 ##add TARGET. We want to predict PRICE or RETURN
 dataset = merge(feat,target,all=FALSE)
@@ -126,39 +141,110 @@ head(dataset)
 
 
 
-
-
-
-
-
-We analyse Causality of stock variance (svar), Book-to-Market (b.m), and earnings to price(ep)
-on SP500 (GSPCep) at different epochs [1927/1932], [1933/1970],[1971/1997], [1998/2005].
-
-plot target and vars and consider periods of common smooth behaviour: between two brek points
-keep in mind: data is monthly so need 4-5 years for enough data for tests
-
-
-
-
 ```{r}
-plot(GSPCep)
-plot(GSPCep["1927/1931"])
-plot(ep["1927/1931"])
+##Divide data into training (75%) and testing (25%). 
+T<-nrow(dataset)
+p=0.75
+T_trn <- round(p*T)
+trainindex <- 1:T_trn
+##process class sets as data frames
+training = as.data.frame(dataset[trainindex,])
+rownames(training) = NULL
+testing = as.data.frame(dataset[-trainindex,])
+rownames(testing) = NULL
+```
+
+
+## GP Prediction
+
+### SE Kernel
+Use given kernel
+```{r}
+## GP Kernel: vanilla is non-stationary; tanh, rbf are stationary
+## Define my own Kernel (for vectors). You have 3 choices below:
+##SE kernel with length scale l
+
+
+#l=0.003 ##0.15, 0.3
+# MyKer <- function(x,y) {
+ # 1.5*exp((sum((x-y)^2))/(-2*l^2))
+# }
+
+ MyKer <- function(x,y) {
+  2*exp(sum(abs(x-y))/(-2*1.5^2)) + 1.5*sum(x*y)
+}
+
+class(MyKer) <- 'kernel'
 ```
 
 
 ```{r}
-# Merge predicted with predictors
-Z1 = merge(GSPCep,ep,svar,bm,)
+
 ```
 
 
 
-## Forecasting with GP
+```{r}
+gpfit = gausspr(TARGET~., data=training,
+                type="regression",
+                #kernel="tanhdot", 
+                #kernel= "rbfdot", #"vanilladot",
+                kernel= MyKer,  
+                #kpar = list(sigma = 0.4), #list of kernel hyper-parameters for rbf
+                ## if you make it constant value then does not make mle estimation of sigma
+                #kpar=list(scale=2,offset=2), ##for tanh
+                var = 0.003 # the initial noise variance: 0.001 default min value
+)
+gpfit
 
-##EVALUATION Functtions
+##build predictor (predict on test data)
+GPpredict <- predict(gpfit,testing)
+```
 
-##1. Evaluation for TARGET prediction.  
+
+### RBF Kernel
+
+```{r}
+gpfit.rbf = gausspr(TARGET~., data=training,
+                type="regression",
+                #kernel="tanhdot", 
+                kernel= "rbfdot", #"vanilladot",
+                #kernel= MyKer,  
+                #kpar = list(sigma = 0.4), #list of kernel hyper-parameters for rbf
+                ## if you make it constant value then does not make mle estimation of sigma
+                #kpar=list(scale=2,offset=2), ##for tanh
+                var = 0.003 # the initial noise variance: 0.001 default min value
+)
+gpfit.rbf
+
+##build predictor (predict on test data)
+GPpredict.rbf <- predict(gpfit.rbf,testing)
+```
+
+### Vanilladot Kernel
+
+```{r}
+gpfit.vanilla = gausspr(TARGET~., data=training,
+                type="regression",
+                #kernel="tanhdot", 
+                kernel= "vanilladot", #"vanilladot",
+                #kernel= MyKer,  
+                #kpar = list(sigma = 0.4), #list of kernel hyper-parameters for rbf
+                ## if you make it constant value then does not make mle estimation of sigma
+                #kpar=list(scale=2,offset=2), ##for tanh
+                var = 0.003 # the initial noise variance: 0.001 default min value
+)
+gpfit.vanilla
+
+##build predictor (predict on test data)
+GPpredict.vanilla <- predict(gpfit.vanilla,testing)
+```
+
+
+
+
+##EVALUATION Functions
+
 
 ```{r}
 ##sum of squares errors function
@@ -183,4 +269,81 @@ pcorrect<- function(actual,pred){
   (1-nrmse(actual,pred))*100
 }
 ```
+
+
+##1. Evaluation for TARGET prediction. Evaluating SE Kernel 
+
+```{r}
+### Evaluation of Results
+actualTS=testing[,ncol(testing)] ##the true series to predict
+predicTS = GPpredict
+
+res <- list("GP"=pcorrect(actualTS,predicTS))
+unlist(res)
+```
+
+```{r}
+
+##Check the gap between training error (mse) and testing error
+train.error <- error(gpfit)  
+testing.error <- mean((actualTS - predicTS)^2)
+gap <- testing.error - train.error ; gap
+
+
+```
+
+```{r}
+
+##For visual comparison
+
+yl=c(min(actualTS,predicTS),max(actualTS,predicTS)) #set y limits
+plot(actualTS,predicTS,ylim=yl)
+
+##Forecasting: PRICE, draw the simulations of price
+#par( mfrow = c( 1, 2 ) )
+#par(mar=c(2.5,2.5,2.5,2.5))
+plot(actualTS,t='l',col='gray20', ylab='', xlab ='',lty=3, main='GP predictions', cex.main=0.75)
+lines(GPpredict,col='green',lwd=2)
+legend('bottomright',legend = c('target','GP'),col=c('gray20','green'),lty=c(3,1),cex=.7)
+```
+##2. Evaluation for TARGET prediction. Evaluating RBF Kernel 
+
+```{r}
+#actualTS=testing[,ncol(testing)] ##the true series to predict
+predicTS.rbf = GPpredict.rbf
+
+res.rbf <- list("GP.rbf"=pcorrect(actualTS,predicTS.rbf))
+unlist(res.rbf)
+```
+
+
+
+Check Gap:
+```{r}
+train.error.rbf <- error(gpfit.rbf)  
+testing.error.rbf <- mean((actualTS - predicTS.rbf)^2)
+gap.rbf <- testing.error.rbf - train.error.rbf ; gap.rbf
+```
+
+
+
+
+```{r}
+yl=c(min(actualTS,predicTS.rbf),max(actualTS,predicTS.rbf)) #set y limits
+plot(actualTS,predicTS.rbf,ylim=yl)
+
+##Forecasting: PRICE, draw the simulations of price
+#par( mfrow = c( 1, 2 ) )
+#par(mar=c(2.5,2.5,2.5,2.5))
+plot(actualTS,t='l',col='gray20', ylab='', xlab ='',lty=3, main='GP predictions with RBF Kernel', cex.main=0.75)
+lines(GPpredict.rbf,col='green',lwd=2)
+legend('bottomright',legend = c('target','GP'),col=c('gray20','green'),lty=c(3,1),cex=.7)
+```
+
+
+##3. Evaluation for TARGET prediction. Evaluating Vanilladot Kernel 
+
+
+
+
 
