@@ -105,7 +105,6 @@ ntis <- mt$ntis
 infl <-mt$infl
 tbl <- mt$tbl
 
-names(GSPCep) = "GSPCep"; 
 names(ep) = "ep"; names(bm) = "bm"   
 names(dp) = "dp"; names(svar) = "svar"  
 names(dy) = "dy"; names(de) = "de"   
@@ -225,8 +224,38 @@ We can see that bm (book-to-market lagged 2 months) is the variable to drop.
 
 
 ```{r}
-dataset2= select(dataset, -'bm.2')
+#dataset2= dataset[,'lag.1', 'lag.2', 'lag.3', 'bm', 'ep', 'svar', 'bm.1', 'ep.1', '.ep.2', 'svar.1','svar.2','TARGET']
+dataset2 = merge(dataset$lag.1, dataset$lag.2, dataset$lag.3, dataset$bm, dataset$ep, dataset$svar, dataset$bm.1, dataset$ep.1,
+                 dataset$ep.2, dataset$svar.1, dataset$svar.2, dataset$TARGET)
+colnames(dataset2) = c("lag.1", "lag.2", "lag.3",
+                      "bm","ep","svar", "bm.1", "ep.1", "ep.2", "svar.1", "svar.2",
+                      #names of other features,
+                      "TARGET")
 ```
+
+```{r}
+head(dataset2)
+```
+
+
+```{r}
+dataset <- dataset2
+```
+
+
+```{r}
+##Divide data into training (75%) and testing (25%). 
+T<-nrow(dataset)
+p=0.75
+T_trn <- round(p*T)
+trainindex <- 1:T_trn
+##process class sets as data frames
+training = as.data.frame(dataset[trainindex,])
+rownames(training) = NULL
+testing = as.data.frame(dataset[-trainindex,])
+rownames(testing) = NULL
+```
+
 
 
 # GP Prediction
@@ -314,7 +343,6 @@ GPpredict.vanilla <- predict(gpfit.vanilla,testing)
 
 
 
-
 ##EVALUATION Functions
 
 
@@ -343,7 +371,7 @@ pcorrect<- function(actual,pred){
 ```
 
 
-##1. Evaluation for TARGET prediction. Evaluating SE Kernel 
+##1. Evaluation for TARGET prediction. Evaluating Custom Kernel 
 
 ```{r}
 ### Evaluation of Results
@@ -374,10 +402,11 @@ plot(actualTS,predicTS,ylim=yl)
 ##Forecasting: PRICE, draw the simulations of price
 #par( mfrow = c( 1, 2 ) )
 #par(mar=c(2.5,2.5,2.5,2.5))
-plot(actualTS,t='l',col='gray20', ylab='', xlab ='',lty=3, main='GP predictions', cex.main=0.75)
+plot(actualTS,t='l',col='gray20', ylab='', xlab ='',lty=3, main='GP predictions with custom kernel', cex.main=0.75)
 lines(GPpredict,col='green',lwd=2)
 legend('bottomright',legend = c('target','GP'),col=c('gray20','green'),lty=c(3,1),cex=.7)
 ```
+
 ##2. Evaluation for TARGET prediction. Evaluating RBF Kernel 
 
 ```{r}
@@ -415,6 +444,34 @@ legend('bottomright',legend = c('target','GP'),col=c('gray20','green'),lty=c(3,1
 
 ##3. Evaluation for TARGET prediction. Evaluating Vanilladot Kernel 
 
+
+```{r}
+#actualTS=testing[,ncol(testing)] ##the true series to predict
+predicTS.vanilla = GPpredict.vanilla
+
+res.vanilla <- list("GP.vanilla"=pcorrect(actualTS,predicTS.vanilla))
+unlist(res.vanilla)
+```
+
+
+
+```{r}
+train.error.vanilla <- error(gpfit.vanilla)  
+testing.error.vanilla <- mean((actualTS - predicTS.vanilla)^2)
+gap.vanilla <- testing.error.vanilla - train.error.vanilla; gap.vanilla
+```
+
+```{r}
+yl=c(min(actualTS,predicTS.vanilla),max(actualTS,predicTS.vanilla)) #set y limits
+plot(actualTS,predicTS.vanilla,ylim=yl)
+
+##Forecasting: PRICE, draw the simulations of price
+#par( mfrow = c( 1, 2 ) )
+#par(mar=c(2.5,2.5,2.5,2.5))
+plot(actualTS,t='l',col='gray20', ylab='', xlab ='',lty=3, main='GP predictions with Vanilladot Kernel', cex.main=0.75)
+lines(GPpredict.vanilla,col='green',lwd=2)
+legend('bottomright',legend = c('target','GP'),col=c('gray20','green'),lty=c(3,1),cex=.7)
+```
 
 
 
