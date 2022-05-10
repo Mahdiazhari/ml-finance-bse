@@ -22,6 +22,7 @@ library('plyr')
 library("lmtest") ##load required library for grangertest
 library("MTS")
 library('zoo')
+library('TTR')
 library('imputeTS')
 library('data.table')
 library('tidyquant')
@@ -91,6 +92,11 @@ colnames(Retp)
 ```
 
 
+```{r}
+sum(is.na(Retp)) #number of NAs before imputation
+```
+
+
 
 ```{r}
 ggplot_na_distribution(Retp$JKSE.ret)
@@ -108,10 +114,22 @@ for (i in 1:ncol(Retp)) {
 ```
 
 
+```{r}
+sum(is.na(Retp))
+```
+
+
 replace column names for the countries
 ```{r}
 colnames(Retp) <- marktCtry
 ```
+
+
+
+```{r}
+head(Retp)
+```
+
 
 
 
@@ -160,6 +178,65 @@ Below is the causality result for weekly:
 causality_results_weekly
 ```
 
+
+### Calculate volatility weekly
+
+```{r}
+#create empty data table for storing results
+causality_results_weekly_volatility <- data.table(country=marktCtry)
+```
+
+
+```{r}
+lambda=0.94
+```
+
+
+```{r}
+weekly.volatility <- Retp
+```
+
+
+```{r}
+for (i in 1:ncol(weekly.volatility)) {
+ weekly.volatility[ , i] <- EMA(weekly.volatility[,i],n=1,ratio=1-lambda)
+  
+}
+```
+
+
+
+
+```{r}
+for (cty in marktCtry) {
+  inter= c()
+  for (cty1 in marktCtry) {
+    if (cty == cty1) {
+      inter= append(inter,0)
+    } else {
+      caus1 = grangertest(weekly.volatility[,c(as.character(cty), as.character(cty1))],order=1)$'Pr(>F)'[2]
+      caus2 = grangertest(weekly.volatility[,c(as.character(cty), as.character(cty1))],order=2)$'Pr(>F)'[2]
+      caus3 = grangertest(weekly.volatility[,c(as.character(cty), as.character(cty1))],order=3)$'Pr(>F)'[2]
+      caus4 = grangertest(weekly.volatility[,c(as.character(cty), as.character(cty1))],order=4)$'Pr(>F)'[2]
+      results = c(caus1,caus2,caus3,caus4)
+      results = replace(results,results<=0.05,1)
+      results = replace(results,results !=1,0)
+      inter = append(inter, I(list(results)))
+      
+    }
+  } 
+ causality_results_weekly_volatility[,as.character(cty) :=inter]
+  
+}
+```
+
+
+```{r}
+ causality_results_weekly_volatility
+```
+
+
+
 ## Monthly
 
 ```{r}
@@ -207,6 +284,12 @@ for (i in 1:ncol(returns_monthly_epoch)) {
  returns_monthly_epoch[ , i] <- na_interpolation(returns_monthly_epoch[,i])
   
 }
+```
+
+
+sum of NAs after interpolation
+```{r}
+sum(is.na(returns_monthly_epoch))
 ```
 
 
@@ -260,15 +343,82 @@ for (cty in marktCtry) {
 causality_results_monthly
 ```
 
+### Calculate volatility monthly
+
+
+```{r}
+#create empty data table for storing results
+causality_results_monthly_volatility <- data.table(country=marktCtry)
+```
+
+
+```{r}
+lambda=0.94
+```
+
+
+```{r}
+monthly.volatility <- returns_monthly_epoch
+```
+
+
+```{r}
+for (i in 1:ncol(monthly.volatility)) {
+ monthly.volatility[ , i] <- EMA(monthly.volatility[,i],n=1,ratio=1-lambda)
+  
+}
+```
+
+
+```{r}
+for (cty in marktCtry) {
+  inter= c()
+  for (cty1 in marktCtry) {
+    if (cty == cty1) {
+      inter= append(inter,0)
+    } else {
+      caus1 = grangertest(monthly.volatility[,c(as.character(cty), as.character(cty1))],order=1)$'Pr(>F)'[2]
+      caus2 = grangertest(monthly.volatility[,c(as.character(cty), as.character(cty1))],order=2)$'Pr(>F)'[2]
+      caus3 = grangertest(monthly.volatility[,c(as.character(cty), as.character(cty1))],order=3)$'Pr(>F)'[2]
+      caus4 = grangertest(monthly.volatility[,c(as.character(cty), as.character(cty1))],order=4)$'Pr(>F)'[2]
+      results = c(caus1,caus2,caus3,caus4)
+      results = replace(results,results<=0.05,1)
+      results = replace(results,results !=1,0)
+      inter = append(inter, I(list(results)))
+      
+    }
+  } 
+ causality_results_monthly_volatility[,as.character(cty) :=inter]
+  
+}
+```
+
+
 
 ## Results for Monthly:
 ```{r}
 datatable(causality_results_monthly, class = 'cell-border stripe')
 ```
 
+### Monthly Volatility
+```{r}
+datatable(causality_results_monthly_volatility, class = 'cell-border stripe')
+```
+
+
+
 ```{r}
 weeklyxtable <- xtable(causality_results_weekly, auto = TRUE)
 ```
+
+```{r}
+weeklyxtable.volatility <- xtable(causality_results_weekly_volatility, auto = TRUE)
+```
+
+```{r}
+print.xtable(weeklyxtable.volatility, type='latex', file='weekly_grangertest_volatility.tex')
+```
+
 
 
 ```{r}
@@ -284,11 +434,28 @@ datatable(causality_results_weekly, class = 'cell-border stripe')
 
 
 ```{r}
+datatable(causality_results_weekly_volatility, class = 'cell-border stripe')
+```
+
+
+
+
+```{r}
 monthlyxtable <- xtable(causality_results_monthly, auto = TRUE)
 ```
 
 
 ```{r}
+monthlyxtable.volatility <- xtable(causality_results_monthly_volatility, auto = TRUE)
+```
+
+
+
+```{r}
 print.xtable(monthlyxtable, type='latex', file='monthly_grangertest.tex')
+```
+
+```{r}
+print.xtable(monthlyxtable.volatility, type='latex', file='monthly_grangertest_volatility.tex')
 ```
 
