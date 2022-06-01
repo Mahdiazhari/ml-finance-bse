@@ -119,6 +119,34 @@ sum(is.na(Retp))
 ```
 
 
+## Number 1 Calculate EMA and compare to std deviation
+
+```{r}
+ema.oneindex <- EMA(Retp$Brazil ,n=1,ratio=1-lambda)
+```
+
+```{r}
+#calculate rolling standard deviation
+sd.oneindex <- rollapply(Retp$Brazil, width=1, FUN=sd,na.rm=TRUE)
+```
+
+```{r}
+sd.ewma <-rollapply(ema.oneindex, width=1, FUN=sd,na.rm=TRUE)
+```
+
+
+
+
+```{r}
+#plot(sd.oneindex,t='l',col='gray20', ylab='', xlab ='',lty=3, main='Standard Deviation', cex.main=0.75)
+lines(sd.oneindex,col='red',lwd=2)
+lines(sd.ewma,col='green',lwd=2)
+#legend('bottomright',legend = c('target','GP'),col=c('gray20','green'),lty=c(3,1),cex=.7)
+```
+
+
+
+
 replace column names for the countries
 ```{r}
 colnames(Retp) <- marktCtry
@@ -195,6 +223,8 @@ lambda=0.94
 ```{r}
 weekly.volatility <- Retp
 ```
+
+
 
 
 ```{r}

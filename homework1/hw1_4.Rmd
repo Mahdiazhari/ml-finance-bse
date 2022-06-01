@@ -65,7 +65,7 @@ Y <- draw_samples(x, N, kernel_fn = se_kernel, length = 0.1)
 
 
 plot(range(x), range(Y), xlab = "x", ylab = "y", type = "n",
-     main = "SE kernel, length = 0.1")
+     main = "SE kernel, lambda = 0.1")
 for (n in 1:N) {
     lines(x, Y[, n], col = col_list[n], lwd = 1.5)
 }
@@ -76,7 +76,7 @@ Y <- draw_samples(x, N, kernel_fn = se_kernel, length = 1)
 
 
 plot(range(x), range(Y), xlab = "x", ylab = "y", type = "n",
-     main = "SE kernel, length = 1")
+     main = "SE kernel, lambda = 1")
 for (n in 1:N) {
     lines(x, Y[, n], col = col_list[n], lwd = 1.5)
 }
@@ -88,7 +88,7 @@ Y <- draw_samples(x, N, kernel_fn = se_kernel, length = 10)
 
 
 plot(range(x), range(Y), xlab = "x", ylab = "y", type = "n",
-     main = "SE kernel, length = 10")
+     main = "SE kernel, lambda = 10")
 for (n in 1:N) {
     lines(x, Y[, n], col = col_list[n], lwd = 1.5)
 }
@@ -131,7 +131,7 @@ for (a in c(0.01, 0.5, 1, 10, 20, 50)) {
 ```
 
 
-With alpha = 50, and length=1, it resembles the previous SE kernel:
+With alpha = 50, and length (lambda)=1, it resembles the previous SE kernel:
 ```{r}
 
 for (a in c(50)) {
